@@ -1,0 +1,83 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 데이터 불러오기 
+press = pd.read_excel('Press_RawDataSet.xlsx', sheet_name=0)
+press.head()
+
+# 데이터 정보 확인
+press.info()
+press.describe()
+press.isna().sum()
+
+# 변수 제거 
+col = ['idx', 'Machine_Name', 'Item No']
+press.drop(col, axis=1, inplace=True)
+
+# 변수 이름 수정
+press.rename(columns = {'Press time(ms)' : '프레스 속도', 'Pressure 1' : '프레스 압력1', 'Pressure 2' : '프레스 압력2', 'Pressure 5' : '프레스 압력5'}, inplace=True)
+
+
+# 시각화 한글폰트 설정
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+plt.rc('font', family='Malgun Gothic')
+sns.set(font="Malgun Gothic",#"NanumGothicCoding", 
+        rc={"axes.unicode_minus":False}, # 마이너스 부호 깨짐 현상 해결
+        style='darkgrid')
+
+# 정규화 진행
+from sklearn.preprocessing import MinMaxScaler
+
+scaler = MinMaxScaler()
+press_s = scaler.fit_transform(press.iloc[:,[1,2,3,4]])
+
+
+---------- PCA를 활용해 변수 4개를 2개로 축소시키고 변수 중요도 파악 ----------
+from sklearn.decomposition import PCA
+
+pca = PCA(n_components=2)
+
+# 모델 학습
+pca.fit(press_s)
+
+# 주성분별 분산 비율 출력
+variance_ratio = pca.explained_variance_ratio_
+for i, ratio in enumerate(variance_ratio):
+    print("주성분{}의 분산 비율: {:.4f}".format(i+1, ratio))
+
+# 주성분별 계수 출력
+loadings = pca.components_
+for i, loading in enumerate(loadings):
+    print("주성분{}의 계수: {}".format(i+1, loading))
+    
+--------------- GMM 알고리즘 ------------------------------
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.mixture import GaussianMixture
+from sklearn.metrics import silhouette_score
+
+# PCA를 이용하여 2차원으로 축소
+pca = PCA(n_components=2)
+press_pca = pca.fit_transform(press_s)
+
+# GMM 알고리즘 모델링
+gmm = GaussianMixture(n_components=2, random_state=42)
+gmm.fit(press_pca)
+
+# 군집 레이블 예측
+y_pred = gmm.predict(press_pca) 
+
+silhouette_avg = silhouette_score(press_pca, y_pred)
+print("The average silhouette_score :", silhouette_avg)
+
+# 시각화
+plt.figure(figsize=(8,5))
+sns.scatterplot(x=press_pca[:, 0], y = press_pca[:, 1], hue=y_pred)
+plt.title('GMM Clustering with 2 clusters')
+plt.xlabel('PCA Component 1')
+plt.ylabel('PCA Component 2')
+plt.show()
