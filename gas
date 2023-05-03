@@ -1,0 +1,81 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('data.csv')
+
+df = df.drop('Time', axis=1)
+grouped = df.groupby(by=['Group', 'Date'], as_index=False).sum()
+
+a = grouped[grouped['Group']=='A']
+b = grouped[grouped['Group']=='B']
+c = grouped[grouped['Group']=='C']
+d = grouped[grouped['Group']=='D']
+e = grouped[grouped['Group']=='E']
+g = grouped[grouped['Group']=='G']
+h = grouped[grouped['Group']=='H']
+
+a = a.drop('Group', axis=1)
+b = b.drop('Group', axis=1)
+c = c.drop('Group', axis=1)
+d = d.drop('Group', axis=1)
+e = e.drop('Group', axis=1)
+g = g.drop('Group', axis=1)
+h = h.drop('Group', axis=1)
+
+a['Date'] = pd.to_datetime(a['Date'])
+a.index = a['Date']
+a.set_index('Date', inplace=True)
+
+a.plot()
+plt.show()
+
+a_train = a[:2100]
+a_test = a[2100:]
+b_train = b[:2100]
+b_test = b[2100:]
+c_train = c[:2100]
+c_test = c[2100:]
+d_train = d[:2100]
+d_test = d[2100:]
+e_train = e[:2100]
+e_test = e[2100:]
+g_train = g[:2100]
+g_test = g[2100:]
+h_train = h[:2100]
+h_test = h[2100:]
+
+from statsmodels.tsa.arima_model import ARIMA
+import statsmodels.api as sm
+
+model = ARIMA(a_train.Gas.values, order=(2,0,2))
+model_fit = model.fit(trend='c', full_output=True, disp=True)
+print(model_fit.summary())
+
+fig = model_fit.plot_predict()
+residuals = pd.DataFrame(model_fit.resid)
+residuals.plot()
+
+forecast_data = model_fit.forecast(steps=91)
+
+pred_y = forecast_data[0].tolist()
+test_y = a_test.Gas.values
+
+plt.plot(pred_y, color="red")
+plt.plot(test_y, color="blue")
+
+import warnings
+warnings.filterwarnings('ignore')
+
+from pmdarima import auto_arima
+stepwise_model = auto_arima(a_train, start_p=1, d=1, start_q=1, max_p=2, max_q=2,
+                            start_P=0, D=1, m=12, seasonal=True, error_action='ignore', trace=True, stepwise=True)
+
+SARIMADay = sm.tsa.statespace.SARIMAX(a_train, order=(1, 1, 2), seasonal_order=(2, 1, 0, 12) ,enforce_stationarity=False,enforce_invertibility=False)
+
+SARIMA_results_day = SARIMADay.fit()
+
+
+SARIMA_predict_day = SARIMA_results_day.predict(start=2100,end=2191)
+a_test['SeasonalARIMA'] = SARIMA_predict_day
+a_test[1:].plot()
